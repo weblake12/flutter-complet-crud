@@ -1,7 +1,10 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:logger/logger.dart';
+import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
 import 'package:sqflite_crud/local/components.dart';
 import 'package:sqflite_crud/local/models.dart';
+import 'package:sqflite_crud/local/sql_heper.dart';
 import 'package:sqflite_crud/local/sql_local_heper.dart';
 
 class HomePage extends StatefulWidget {
@@ -13,29 +16,77 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   bool isLoading = true;
+  bool isConnected = false;
+  late bool apiConnection;
+  String connectionType = 'none';
   TextEditingController title = TextEditingController();
   TextEditingController description = TextEditingController();
   // All journals
   List<Item> journals = [];
   // This function is used to fetch all data from the database
-  void refreshJournals() async {
+  void refreshLocalJournals() async {
     final items = await SQLLocalHelper.getItems();
-    Logger().i('!! items');
-    Logger().i(items);
-
     setState(() {
       journals = items;
-      isLoading = false;
+    });
+  }
+
+  void refreshJournals() async {
+    final items = await SQLHelper.getItems();
+    setState(() {
+      journals = items;
+    });
+  }
+
+  void checkConnectivity() async {
+    // bool conectivityStatus = await InternetConnection().hasInternetAccess;
+    final connectivityResult = await (Connectivity().checkConnectivity());
+    InternetConnection().onStatusChange.listen((InternetStatus status) {
+      switch (status) {
+        case InternetStatus.connected:
+          setState(() {
+            isConnected = true;
+          });
+          break;
+        case InternetStatus.disconnected:
+          setState(() {
+            isConnected = false;
+          });
+          break;
+      }
+    });
+    /*
+    connection = InternetConnection.createInstance(
+      customCheckOptions: [
+        InternetCheckOption(uri: Uri.parse('https://localhost:3000')),
+      ],
+    );
+    */
+    setState(() {
+      // apiConnection = connection;
+      connectionType =
+          (connectivityResult == ConnectivityResult.mobile) ? 'mobile' : ((connectivityResult == ConnectivityResult.wifi) ? 'wifi' : 'none');
     });
   }
 
   @override
   void initState() {
     super.initState();
-    SQLLocalHelper.initializeDB().whenComplete(() async {
+    if (isConnected == true) {
+      checkConnectivity();
       refreshJournals();
-      setState(() {});
-    });
+      setState(() {
+        isLoading = false;
+      });
+    } else {
+      SQLLocalHelper.initializeDB().whenComplete(() async {
+        checkConnectivity();
+        refreshLocalJournals();
+        setState(() {
+          isLoading = false;
+        });
+      });
+    }
   }
 
   @override
@@ -43,7 +94,19 @@ class _HomePageState extends State<HomePage> {
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Films aux Oscars'),
+          title: const Text('Oscars winners'),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: isLoading
+                  ? Container()
+                  : Icon(
+                      isConnected ? FeatherIcons.checkCircle : FeatherIcons.xCircle,
+                      color: Colors.white,
+                      size: 25.0,
+                    ),
+            )
+          ],
         ),
         body: isLoading
             ? const Center(
@@ -129,7 +192,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       isLoading = true;
     });
-    await SQLLocalHelper.deleteItem(id);
+    (isConnected) ? await SQLHelper.deleteItem(id) : await SQLLocalHelper.deleteItem(id);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         backgroundColor: Colors.green,
@@ -151,13 +214,21 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       isLoading = true;
     });
-    int result = await SQLLocalHelper.updateItem(
-      Item(
-        id: id,
-        title: title.text,
-        description: description.text,
-      ),
-    );
+    int result = (isConnected)
+        ? await SQLHelper.updateItem(
+            Item(
+              id: id,
+              title: title.text,
+              description: description.text,
+            ),
+          )
+        : await SQLLocalHelper.updateItem(
+            Item(
+              id: id,
+              title: title.text,
+              description: description.text,
+            ),
+          );
     MaterialColor color = Colors.red;
     Text text = const Text('Opération ratée');
     if (isInteger(result)) {
@@ -185,12 +256,19 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       isLoading = true;
     });
-    int id = await SQLLocalHelper.createItem(
-      Item(
-        title: title.text,
-        description: description.text,
-      ),
-    );
+    int id = (isConnected)
+        ? await SQLHelper.createItem(
+            Item(
+              title: title.text,
+              description: description.text,
+            ),
+          )
+        : await SQLLocalHelper.createItem(
+            Item(
+              title: title.text,
+              description: description.text,
+            ),
+          );
     MaterialColor color = Colors.red;
     Text text = const Text('Opération ratée');
     if (isInteger(id)) {
