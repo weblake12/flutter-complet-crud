@@ -22,19 +22,16 @@ class _HomePageState extends State<HomePage> {
   TextEditingController title = TextEditingController();
   TextEditingController description = TextEditingController();
   // All journals
+  List<Item> internetJournals = [];
+  List<Item> localJournals = [];
   List<Item> journals = [];
   // This function is used to fetch all data from the database
-  void refreshLocalJournals() async {
-    final items = await SQLLocalHelper.getItems();
-    setState(() {
-      journals = items;
-    });
-  }
-
   void refreshJournals() async {
     final items = await SQLHelper.getItems();
+    final localItems = await SQLLocalHelper.getItems();
     setState(() {
-      journals = items;
+      internetJournals = items;
+      localJournals = localItems;
     });
   }
 
@@ -72,25 +69,18 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    if (isConnected == true) {
+    SQLLocalHelper.initializeDB().whenComplete(() async {
       checkConnectivity();
       refreshJournals();
       setState(() {
         isLoading = false;
       });
-    } else {
-      SQLLocalHelper.initializeDB().whenComplete(() async {
-        checkConnectivity();
-        refreshLocalJournals();
-        setState(() {
-          isLoading = false;
-        });
-      });
-    }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    journals = isConnected ? internetJournals : localJournals;
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(

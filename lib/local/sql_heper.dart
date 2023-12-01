@@ -27,7 +27,6 @@ class SQLHelper {
   }
 
   static Future<List<Item>> getItems() async {
-    Logger().i('!! getItems');
     List<Item> result = [];
     var response = await NetworkHandler.get('items');
     if (response.statusCode == 200) {
